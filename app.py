@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import smtplib
+from email.mime.text import MIMEText
 
 st.set_page_config(page_title="Customer Churn Dashboard", layout="wide")
 
 st.title("📊 Customer Churn Dashboard")
-st.write("Upload file Excel của bạn để tính churn")
+st.write("Upload file Excel để phân tích churn và gửi email cho quản lý")
 
 uploaded_file = st.file_uploader("Chọn file Excel", type=["xlsx"])
 
@@ -28,7 +30,6 @@ if uploaded_file is not None:
     if missing_cols:
         st.error(f"Thiếu cột: {missing_cols}")
     else:
-        # tính % giảm login
         df["login_drop_pct"] = (
             (df["login_week_prev"] - df["login_week_curr"])
             / df["login_week_prev"]
@@ -49,14 +50,12 @@ if uploaded_file is not None:
 
         df["risk_level"] = df.apply(classify, axis=1)
 
-        # filter manager
         manager_list = ["All"] + sorted(df["manager_name"].dropna().unique().tolist())
         selected_manager = st.selectbox("Chọn manager", manager_list)
 
         if selected_manager != "All":
             df = df[df["manager_name"] == selected_manager]
 
-        # filter risk
         risk_list = ["All", "High", "Medium", "Low"]
         selected_risk = st.selectbox("Chọn risk level", risk_list)
 
@@ -101,6 +100,55 @@ if uploaded_file is not None:
             ],
             use_container_width=True
         )
+
+        st.markdown("## 🔐 Cấu hình gửi email")
+        sender_email = st.text_input("Nhập Gmail của bạn")
+        password = st.text_input("Nhập App Password", type="password")
+
+        def send_mail():
+            if alert_df.empty:
+                st.warning("Không có khách cần gửi mail")
+                return
+
+            grouped = alert_df.groupby(["manager_name", "manager_email"])
+
+            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server.starttls()
+            server.login(sender_email, password)
+
+            for (manager_name, manager_email), group in grouped:
+                content = f"Chào {manager_name},\n\nDanh sách khách hàng cần chăm sóc:\n\n"
+
+                for _, row in group.iterrows():
+                    content += (
+                        f"- {row['customer_name']} | "
+                        f"Login tuần trước: {row['login_week_prev']} | "
+                        f"Login tuần này: {row['login_week_curr']} | "
+                        f"Giảm: {round(row['login_drop_pct'], 2)}% | "
+                        f"Risk: {row['risk_level']}\n"
+                    )
+
+                content += "\nVui lòng kiểm tra sớm.\n"
+
+                msg = MIMEText(content, "plain", "utf-8")
+                msg["Subject"] = "Cảnh báo khách hàng có nguy cơ rời bỏ"
+                msg["From"] = sender_email
+                msg["To"] = manager_email
+
+                server.send_message(msg)
+
+            server.quit()
+            st.success("✅ Đã gửi email thành công!")
+
+        st.markdown("## 📧 Gửi email")
+        if st.button("🚀 Gửi email cho tất cả manager"):
+            if sender_email == "" or password == "":
+                st.warning("Vui lòng nhập Gmail và App Password")
+            else:
+                try:
+                    send_mail()
+                except Exception as e:
+                    st.error(f"Gửi email thất bại: {e}")
 
         st.subheader("Chi tiết toàn bộ khách hàng")
         st.dataframe(df, use_container_width=True)
