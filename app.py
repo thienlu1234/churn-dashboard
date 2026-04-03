@@ -154,7 +154,7 @@ if uploaded_file is not None:
         fig = px.pie(
             filtered_df,
             names="risk_level",
-            hole=0.5,
+            hole=0.3,
             color="risk_level",
             color_discrete_map={
                 "High": "#ff4d4f",
@@ -163,18 +163,16 @@ if uploaded_file is not None:
             }
         )
         
-        # chỉnh chữ + % to hơn
         fig.update_traces(
-            textinfo="percent+label",
-            textfont_size=20,
+            textinfo="percent",
+            textfont_size=22,
             textfont_color="white",
-            marker=dict(line=dict(color='#000000', width=2))
+            pull=[0.08, 0.02, 0.02],  # tạo hiệu ứng nổi
+            marker=dict(line=dict(color='white', width=3))
         )
         
-        # chỉnh layout tổng thể
         fig.update_layout(
             showlegend=True,
-            legend_title="Risk Level",
             font=dict(size=16),
         )
         
