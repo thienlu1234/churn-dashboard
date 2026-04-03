@@ -247,7 +247,23 @@ if uploaded_file is not None:
             manager_summary,
             x="manager_name",
             y="total_risk",
-            title="Số khách hàng có nguy cơ rời bỏ theo quản lý"
+            color="total_risk",
+            text="total_risk",
+            color_continuous_scale="Reds"
+        )
+        
+        fig.update_traces(
+            textposition="outside",
+            textfont_size=16
+        )
+        
+        fig.update_layout(
+            title="📊 Số khách hàng có nguy cơ rời bỏ theo quản lý",
+            xaxis_title="Manager",
+            yaxis_title="Số khách rủi ro",
+            showlegend=False,
+            plot_bgcolor="white",
+            paper_bgcolor="white"
         )
         
         st.plotly_chart(fig, use_container_width=True)
