@@ -242,28 +242,47 @@ if uploaded_file is not None:
         
         # ===== CHART =====
         import plotly.express as px
+
+        # ===== SORT để manager tệ nhất đứng đầu =====
+        manager_summary = manager_summary.sort_values("total_risk", ascending=False)
         
+        # ===== TẠO LEVEL (để tô màu đỏ - vàng - xanh) =====
+        manager_summary["level"] = manager_summary["total_risk"].apply(
+            lambda x: "High" if x >= 10 else ("Medium" if x >= 5 else "Low")
+        )
+        
+        # ===== VẼ BIỂU ĐỒ =====
         fig = px.bar(
             manager_summary,
             x="manager_name",
             y="total_risk",
-            color="total_risk",
+            color="level",
             text="total_risk",
-            color_continuous_scale="Reds"
+            color_discrete_map={
+                "High": "#ff4d4f",    # đỏ
+                "Medium": "#faad14",  # vàng
+                "Low": "#52c41a"      # xanh
+            }
         )
         
+        # ===== CHỮ TO + RÕ =====
         fig.update_traces(
             textposition="outside",
-            textfont_size=16
+            textfont_size=20,
+            textfont_color="black",
+            marker_line_width=2,
+            marker_line_color="black"
         )
         
+        # ===== GIAO DIỆN ĐẸP =====
         fig.update_layout(
             title="📊 Số khách hàng có nguy cơ rời bỏ theo quản lý",
             xaxis_title="Manager",
             yaxis_title="Số khách rủi ro",
-            showlegend=False,
+            font=dict(size=16),
             plot_bgcolor="white",
-            paper_bgcolor="white"
+            paper_bgcolor="white",
+            showlegend=False
         )
         
         st.plotly_chart(fig, use_container_width=True)
