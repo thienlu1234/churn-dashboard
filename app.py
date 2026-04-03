@@ -179,7 +179,28 @@ if uploaded_file is not None:
         st.plotly_chart(fig, use_container_width=True)
         # ===== TOP =====
         st.subheader("🔥 Top giảm mạnh nhất")
-        st.dataframe(df.head(10), use_container_width=True)
+        top_df = df.head(10).copy()
+
+        # format số đẹp
+        top_df["revenue_week_prev"] = top_df["revenue_week_prev"].map("{:,.0f}".format)
+        top_df["revenue_week_curr"] = top_df["revenue_week_curr"].map("{:,.0f}".format)
+        top_df["login_drop_pct"] = top_df["login_drop_pct"].map("{:.1f}%".format)
+        
+        # highlight màu
+        def highlight_row(row):
+            if row["risk_level"] == "High":
+                return ["background-color: #f8d7da"] * len(row)
+            elif row["risk_level"] == "Medium":
+                return ["background-color: #fff3cd"] * len(row)
+            else:
+                return [""] * len(row)
+        
+        st.dataframe(
+            top_df.style
+            .apply(highlight_row, axis=1)
+            .hide(axis="index"),
+            use_container_width=True
+        )
 
         # ===== ALERT =====
         alert_df = filtered_df[filtered_df["risk_level"].isin(["High", "Medium"])]
