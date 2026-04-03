@@ -53,7 +53,30 @@ if uploaded_file is not None:
         ) * 100
 
         df["revenue_drop_pct"] = df["revenue_drop_pct"].fillna(0)
-
+        # ===== FILTER =====
+        st.sidebar.header("🔎 Bộ lọc")
+        
+        selected_manager = st.sidebar.selectbox(
+            "Chọn Manager",
+            ["All"] + sorted(df["manager_name"].dropna().unique())
+        )
+        
+        selected_risk = st.sidebar.selectbox(
+            "Chọn Risk Level",
+            ["All", "High", "Medium", "Low"]
+        )
+        
+        filtered_df = df.copy()
+        
+        if selected_manager != "All":
+            filtered_df = filtered_df[
+                filtered_df["manager_name"] == selected_manager
+            ]
+        
+        if selected_risk != "All":
+            filtered_df = filtered_df[
+                filtered_df["risk_level"] == selected_risk
+            ]
         def classify(row):
             if row["login_week_prev"] > 0 and row["login_week_curr"] == 0:
                 return "High"
