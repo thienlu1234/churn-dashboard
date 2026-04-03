@@ -107,14 +107,44 @@ if uploaded_file is not None:
             "revenue_week_prev"
         ].sum()
 
-        st.subheader("📊 KPI")
+        st.subheader("📊 KPI Overview")
 
         col1, col2, col3, col4, col5 = st.columns(5)
-        col1.metric("Total", total)
-        col2.metric("High", high)
-        col3.metric("Medium", medium)
-        col4.metric("Low", low)
-        col5.metric("Churn Rate", f"{churn_rate:.1f}%")
+        
+        col1.markdown(f"""
+        <div style="background:#f0f2f6;padding:15px;border-radius:12px;text-align:center">
+        <h4>Total Customers</h4>
+        <h2>{total}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col2.markdown(f"""
+        <div style="background:#ffe5e5;padding:15px;border-radius:12px;text-align:center">
+        <h4>High Risk</h4>
+        <h2>{high}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col3.markdown(f"""
+        <div style="background:#fff3cd;padding:15px;border-radius:12px;text-align:center">
+        <h4>Medium Risk</h4>
+        <h2>{medium}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col4.markdown(f"""
+        <div style="background:#e2f0d9;padding:15px;border-radius:12px;text-align:center">
+        <h4>Low Risk</h4>
+        <h2>{low}</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col5.markdown(f"""
+        <div style="background:#d9edf7;padding:15px;border-radius:12px;text-align:center">
+        <h4>Churn Rate</h4>
+        <h2>{churn_rate:.1f}%</h2>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.metric("💰 Revenue At Risk", f"{revenue_risk:,.0f}")
 
