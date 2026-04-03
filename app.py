@@ -7,7 +7,14 @@ from email.mime.text import MIMEText
 
 st.set_page_config(page_title="Customer Churn Dashboard", layout="wide")
 
-st.title("📊 Customer Churn Monitoring System")
+st.markdown("""
+<h1 style='text-align: center; color: #4A90E2; margin-bottom: 10px;'>
+📊 Customer Churn Monitoring System
+</h1>
+<p style='text-align: center; color: gray; font-size: 18px;'>
+Upload file Excel để phân tích churn và gửi email cho quản lý
+</p>
+""", unsafe_allow_html=True)
 
 uploaded_file = st.file_uploader("Upload file Excel", type=["xlsx"])
 
