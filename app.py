@@ -150,7 +150,17 @@ if uploaded_file is not None:
 
         # ===== CHART =====
         st.subheader("Risk Distribution")
-        fig = px.pie(filtered_df, names="risk_level")
+        fig = px.pie(
+            filtered_df,
+            names="risk_level",
+            hole=0.4,
+            color="risk_level",
+            color_discrete_map={
+                "High": "#ff4d4f",
+                "Medium": "#faad14",
+                "Low": "#52c41a"
+            }
+        )
         st.plotly_chart(fig, use_container_width=True)
 
         # ===== TOP =====
