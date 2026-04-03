@@ -109,7 +109,43 @@ if uploaded_file is not None:
 
         st.subheader("⚠️ Khách cần chăm sóc")
         st.dataframe(alert_df.style.apply(highlight, axis=1), use_container_width=True)
-
+        # ===== SO SÁNH MANAGER =====
+        st.subheader("📊 So sánh quản lý")
+        
+        manager_summary = (
+            df.groupby("manager_name")
+            .agg(
+                total_customers=("customer_id", "count"),
+                high_risk=("risk_level", lambda x: (x == "High").sum()),
+                medium_risk=("risk_level", lambda x: (x == "Medium").sum())
+            )
+            .reset_index()
+        )
+        
+        manager_summary["total_risk"] = (
+            manager_summary["high_risk"] + manager_summary["medium_risk"]
+        )
+        
+        manager_summary["churn_rate"] = (
+            manager_summary["high_risk"] / manager_summary["total_customers"] * 100
+        )
+        
+        # sort manager nguy hiểm nhất lên trên
+        manager_summary = manager_summary.sort_values("total_risk", ascending=False)
+        
+        st.dataframe(manager_summary, use_container_width=True)
+        
+        # ===== CHART =====
+        import plotly.express as px
+        
+        fig = px.bar(
+            manager_summary,
+            x="manager_name",
+            y="total_risk",
+            title="Số khách hàng có nguy cơ rời bỏ theo quản lý"
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
         # ===== EMAIL CONFIG =====
         st.markdown("## 🔐 Email Config")
         sender_email = st.text_input("Gmail của bạn")
