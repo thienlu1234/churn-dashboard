@@ -149,11 +149,12 @@ if uploaded_file is not None:
         st.metric("💰 Revenue At Risk", f"{revenue_risk:,.0f}")
 
         # ===== CHART =====
-        st.subheader("Risk Distribution")
+        st.subheader("📊 Risk Distribution")
+
         fig = px.pie(
             filtered_df,
             names="risk_level",
-            hole=0.4,
+            hole=0.5,
             color="risk_level",
             color_discrete_map={
                 "High": "#ff4d4f",
@@ -161,8 +162,23 @@ if uploaded_file is not None:
                 "Low": "#52c41a"
             }
         )
+        
+        # chỉnh chữ + % to hơn
+        fig.update_traces(
+            textinfo="percent+label",
+            textfont_size=20,
+            textfont_color="white",
+            marker=dict(line=dict(color='#000000', width=2))
+        )
+        
+        # chỉnh layout tổng thể
+        fig.update_layout(
+            showlegend=True,
+            legend_title="Risk Level",
+            font=dict(size=16),
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
-
         # ===== TOP =====
         st.subheader("🔥 Top giảm mạnh nhất")
         st.dataframe(df.head(10), use_container_width=True)
