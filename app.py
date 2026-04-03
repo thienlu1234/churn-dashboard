@@ -243,15 +243,15 @@ if uploaded_file is not None:
         # ===== CHART =====
         import plotly.express as px
 
-        # ===== SORT để manager tệ nhất đứng đầu =====
+        # ===== SORT =====
         manager_summary = manager_summary.sort_values("total_risk", ascending=False)
         
-        # ===== TẠO LEVEL (để tô màu đỏ - vàng - xanh) =====
+        # ===== SỬA LOGIC MÀU =====
         manager_summary["level"] = manager_summary["total_risk"].apply(
-            lambda x: "High" if x >= 10 else ("Medium" if x >= 5 else "Low")
+            lambda x: "High" if x >= 10 else ("Medium" if x >= 7 else "Low")
         )
         
-        # ===== VẼ BIỂU ĐỒ =====
+        # ===== CHART =====
         fig = px.bar(
             manager_summary,
             x="manager_name",
@@ -265,24 +265,30 @@ if uploaded_file is not None:
             }
         )
         
-        # ===== CHỮ TO + RÕ =====
+        # ===== FIX TEXT BỊ CHE + BỎ VIỀN =====
         fig.update_traces(
             textposition="outside",
-            textfont_size=20,
+            textfont_size=22,
             textfont_color="black",
-            marker_line_width=2,
-            marker_line_color="black"
+            cliponaxis=False   # 👈 QUAN TRỌNG: tránh bị cắt số
         )
         
-        # ===== GIAO DIỆN ĐẸP =====
+        # ===== LÀM CHỮ ĐẬM + ĐEN =====
         fig.update_layout(
             title="📊 Số khách hàng có nguy cơ rời bỏ theo quản lý",
             xaxis_title="Manager",
             yaxis_title="Số khách rủi ro",
-            font=dict(size=16),
+            font=dict(size=16, color="black"),  # 👈 chữ toàn bộ đậm hơn
+            xaxis=dict(
+                tickfont=dict(size=16, color="black")
+            ),
+            yaxis=dict(
+                tickfont=dict(size=14, color="black")
+            ),
             plot_bgcolor="white",
             paper_bgcolor="white",
-            showlegend=False
+            showlegend=False,
+            margin=dict(t=80)  # 👈 tránh bị đè số trên cùng
         )
         
         st.plotly_chart(fig, use_container_width=True)
