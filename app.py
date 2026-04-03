@@ -88,7 +88,30 @@ if uploaded_file is not None:
                 return "Low"
 
         df["risk_level"] = df.apply(classify, axis=1)
-
+        # ===== FILTER =====
+        st.sidebar.header("🔎 Bộ lọc")
+        
+        selected_manager = st.sidebar.selectbox(
+            "Chọn Manager",
+            ["All"] + sorted(df["manager_name"].dropna().unique())
+        )
+        
+        selected_risk = st.sidebar.selectbox(
+            "Chọn Risk Level",
+            ["All", "High", "Medium", "Low"]
+        )
+        
+        filtered_df = df.copy()
+        
+        if selected_manager != "All":
+            filtered_df = filtered_df[
+                filtered_df["manager_name"] == selected_manager
+            ]
+        
+        if selected_risk != "All":
+            filtered_df = filtered_df[
+                filtered_df["risk_level"] == selected_risk
+            ]
         # ===== SORT =====
         order_map = {"High": 0, "Medium": 1, "Low": 2}
         df["order"] = df["risk_level"].map(order_map)
