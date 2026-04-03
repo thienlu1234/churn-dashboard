@@ -128,7 +128,7 @@ if uploaded_file is not None:
         st.dataframe(df.head(10), use_container_width=True)
 
         # ===== ALERT =====
-        alert_df = df[df["risk_level"].isin(["High", "Medium"])]
+        alert_df = filtered_df[filtered_df["risk_level"].isin(["High", "Medium"])]
 
         def highlight(row):
             if row["risk_level"] == "High":
