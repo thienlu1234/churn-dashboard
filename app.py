@@ -1,381 +1,180 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
-st.set_page_config(page_title="Customer Churn Dashboard", layout="wide")
+st.set_page_config(layout="wide")
 
-st.markdown("""
-<h1 style='text-align: center; color: #4A90E2; margin-bottom: 10px;'>
-📊 Customer Churn Monitoring System
-</h1>
-<p style='text-align: center; color: gray; font-size: 18px;'>
-Upload file Excel để phân tích churn và gửi email cho quản lý
-</p>
-""", unsafe_allow_html=True)
+st.title("📊 Dashboard Phân Tích Khách Hàng")
 
-uploaded_file = st.file_uploader("Upload file Excel", type=["xlsx"])
+file = st.file_uploader("Upload file Excel", type=["xlsx"])
 
-if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file)
+@st.cache_data
+def load_data(file):
+    return pd.read_excel(file)
 
-    required_cols = [
-        "customer_id",
-        "customer_name",
-        "manager_name",
-        "manager_email",
-        "revenue_week_prev",
-        "revenue_week_curr",
-        "login_week_prev",
-        "login_week_curr"
-    ]
+if file is not None:
+    df = load_data(file)
+    df = df.fillna(0)
 
-    missing_cols = [col for col in required_cols if col not in df.columns]
+    # =========================
+    # 🔥 FIX CỘT (QUAN TRỌNG)
+    # =========================
+    df.columns = df.columns.str.strip()
+    df.columns = df.columns.str.upper()
 
-    if missing_cols:
-        st.error(f"Thiếu cột: {missing_cols}")
+    # Debug (có thể comment lại sau)
+    st.sidebar.write("📌 Columns:")
+    st.sidebar.write(df.columns)
+
+    # =========================
+    # 🔥 AUTO DETECT CỘT
+    # =========================
+    col_manager = next((c for c in df.columns if "CANBO" in c), None)
+    col_phong = next((c for c in df.columns if "PHONG" in c), None)
+    col_tnt = next((c for c in df.columns if "TNT" in c), None)
+    col_hdv = next((c for c in df.columns if "HDV" in c), None)
+    col_sp = next((c for c in df.columns if "SPD" in c or "SPDV" in c), None)
+
+    # =========================
+    # 🔥 TẠO TOTAL VALUE
+    # =========================
+    if col_tnt and col_hdv:
+        df["TOTAL_VALUE"] = df[col_tnt] + df[col_hdv]
     else:
+        st.error("❌ Không tìm thấy cột TNT hoặc HDV")
+        st.stop()
 
-        # ===== CALCULATE =====
-        df["login_drop_pct"] = (
-            (df["login_week_prev"] - df["login_week_curr"])
-            / df["login_week_prev"]
-        ) * 100
+    # =========================
+    # MENU
+    # =========================
+    menu = st.sidebar.radio("Chọn phân tích", [
+        "1. Top khách hàng",
+        "2. VIP / thường",
+        "3. Theo cán bộ",
+        "4. Theo phòng ban",
+        "5. Khách ngủ đông",
+        "6. Biểu đồ",
+        "7. Clustering",
+        "8. Scoring",
+        "9. Churn"
+    ])
 
-        df["login_drop_pct"] = df["login_drop_pct"].replace([float("inf"), -float("inf")], 0)
-        df["login_drop_pct"] = df["login_drop_pct"].fillna(0)
+    # =========================
+    # 1. TOP KHÁCH
+    # =========================
+    if menu.startswith("1"):
+        top = df.nlargest(20, "TOTAL_VALUE")
+        st.subheader("🏆 Top khách hàng")
+        st.dataframe(top)
 
-        df["revenue_drop_pct"] = (
-            (df["revenue_week_prev"] - df["revenue_week_curr"])
-            / df["revenue_week_prev"]
-        ) * 100
-
-        df["revenue_drop_pct"] = df["revenue_drop_pct"].fillna(0)
-       
-        def classify(row):
-            if row["login_week_prev"] > 0 and row["login_week_curr"] == 0:
-                return "High"
-            if row["login_drop_pct"] >= 50:
-                return "High"
-            elif row["login_drop_pct"] >= 30:
-                return "Medium"
-            else:
-                return "Low"
-
-        df["risk_level"] = df.apply(classify, axis=1)
-        # ===== FILTER =====
-        st.sidebar.header("🔎 Bộ lọc")
-        
-        selected_manager = st.sidebar.selectbox(
-            "Chọn Manager",
-            ["All"] + sorted(df["manager_name"].dropna().unique())
-        )
-        
-        selected_risk = st.sidebar.selectbox(
-            "Chọn Risk Level",
-            ["All", "High", "Medium", "Low"]
-        )
-        
-        filtered_df = df.copy()
-        
-        if selected_manager != "All":
-            filtered_df = filtered_df[
-                filtered_df["manager_name"] == selected_manager
-            ]
-        
-        if selected_risk != "All":
-            filtered_df = filtered_df[
-                filtered_df["risk_level"] == selected_risk
-            ]
-        # ===== SORT =====
-        order_map = {"High": 0, "Medium": 1, "Low": 2}
-        df["order"] = df["risk_level"].map(order_map)
-
-        df = df.sort_values(["order", "login_drop_pct"], ascending=[True, False])
-
-        # ===== KPI =====
-        total = len(df)
-        high = (df["risk_level"] == "High").sum()
-        medium = (df["risk_level"] == "Medium").sum()
-        low = (df["risk_level"] == "Low").sum()
-        churn_rate = (high / total * 100) if total > 0 else 0
-
-        revenue_risk = df.loc[
-            df["risk_level"].isin(["High", "Medium"]),
-            "revenue_week_prev"
-        ].sum()
-
-        st.subheader("📊 KPI Overview")
-
-        col1, col2, col3, col4, col5 = st.columns(5)
-        
-        col1.markdown(f"""
-        <div style="background:#f0f2f6;padding:15px;border-radius:12px;text-align:center">
-        <h4>Total Customers</h4>
-        <h2>{total}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        col2.markdown(f"""
-        <div style="background:#ffe5e5;padding:15px;border-radius:12px;text-align:center">
-        <h4>High Risk</h4>
-        <h2>{high}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        col3.markdown(f"""
-        <div style="background:#fff3cd;padding:15px;border-radius:12px;text-align:center">
-        <h4>Medium Risk</h4>
-        <h2>{medium}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        col4.markdown(f"""
-        <div style="background:#e2f0d9;padding:15px;border-radius:12px;text-align:center">
-        <h4>Low Risk</h4>
-        <h2>{low}</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        col5.markdown(f"""
-        <div style="background:#d9edf7;padding:15px;border-radius:12px;text-align:center">
-        <h4>Churn Rate</h4>
-        <h2>{churn_rate:.1f}%</h2>
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.metric("💰 Revenue At Risk", f"{revenue_risk:,.0f}")
-
-        # ===== CHART =====
-        st.subheader("📊 Risk Distribution")
-
-        fig = px.pie(
-            filtered_df,
-            names="risk_level",
-            hole=0.3,
-            color="risk_level",
-            color_discrete_map={
-                "High": "#ff4d4f",
-                "Medium": "#faad14",
-                "Low": "#52c41a"
-            }
-        )
-        
-        fig.update_traces(
-            textinfo="percent",
-            textfont_size=22,
-            textfont_color="white",
-            pull=[0.08, 0.02, 0.02],  # tạo hiệu ứng nổi
-            marker=dict(line=dict(color='white', width=3))
-        )
-        
-        fig.update_layout(
-            showlegend=True,
-            font=dict(size=16),
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        # ===== TOP =====
-        st.subheader("🔥 Top giảm mạnh nhất")
-        top_df = df.head(10).copy()
-
-        # format số đẹp
-        top_df["revenue_week_prev"] = top_df["revenue_week_prev"].map("{:,.0f}".format)
-        top_df["revenue_week_curr"] = top_df["revenue_week_curr"].map("{:,.0f}".format)
-        top_df["login_drop_pct"] = top_df["login_drop_pct"].map("{:.1f}%".format)
-        
-        # highlight màu
-        def highlight_row(row):
-            if row["risk_level"] == "High":
-                return ["background-color: #f8d7da"] * len(row)
-            elif row["risk_level"] == "Medium":
-                return ["background-color: #fff3cd"] * len(row)
-            else:
-                return [""] * len(row)
-        
-        st.dataframe(
-            top_df.style
-            .apply(highlight_row, axis=1)
-            .hide(axis="index"),
-            use_container_width=True
+    # =========================
+    # 2. VIP
+    # =========================
+    elif menu.startswith("2"):
+        threshold = df["TOTAL_VALUE"].quantile(0.8)
+        df["SEGMENT"] = df["TOTAL_VALUE"].apply(
+            lambda x: "VIP" if x >= threshold else "Thường"
         )
 
-        # ===== ALERT =====
-        alert_df = filtered_df[filtered_df["risk_level"].isin(["High", "Medium"])]
+        st.subheader("🎯 Phân nhóm khách hàng")
+        st.bar_chart(df["SEGMENT"].value_counts())
 
-        def highlight(row):
-            if row["risk_level"] == "High":
-                return ["background-color:#f8d7da"] * len(row)
-            elif row["risk_level"] == "Medium":
-                return ["background-color:#fff3cd"] * len(row)
-            return [""] * len(row)
+    # =========================
+    # 3. THEO CÁN BỘ
+    # =========================
+    elif menu.startswith("3"):
+        if col_manager:
+            result = df.groupby(col_manager)["TOTAL_VALUE"].sum().reset_index()
 
-        st.subheader("⚠️ Khách cần chăm sóc")
-        st.dataframe(alert_df.style.apply(highlight, axis=1), use_container_width=True)
-        # ===== SO SÁNH MANAGER =====
-        st.subheader("📊 So sánh quản lý")
-        
-        manager_summary = (
-            df.groupby("manager_name")
-            .agg(
-                total_customers=("customer_id", "count"),
-                high_risk=("risk_level", lambda x: (x == "High").sum()),
-                medium_risk=("risk_level", lambda x: (x == "Medium").sum())
+            fig = px.bar(
+                result.sort_values(by="TOTAL_VALUE", ascending=False),
+                x=col_manager,
+                y="TOTAL_VALUE"
             )
-            .reset_index()
-        )
-        
-        manager_summary["total_risk"] = (
-            manager_summary["high_risk"] + manager_summary["medium_risk"]
-        )
-        
-        manager_summary["churn_rate"] = (
-            manager_summary["high_risk"] / manager_summary["total_customers"] * 100
-        )
-        
-        # sort manager nguy hiểm nhất lên trên
-        manager_summary = manager_summary.sort_values("total_risk", ascending=False)
-        
-        st.dataframe(manager_summary, use_container_width=True)
-        
-        # ===== CHART =====
-        import plotly.express as px
+            st.plotly_chart(fig)
+        else:
+            st.error("❌ Không tìm thấy cột cán bộ")
 
-        # ===== SORT =====
-        manager_summary = manager_summary.sort_values("total_risk", ascending=False)
-        
-        # ===== SỬA LOGIC MÀU =====
-        manager_summary["level"] = manager_summary["total_risk"].apply(
-            lambda x: "High" if x >= 10 else ("Medium" if x >= 7 else "Low")
-        )
-        
-        # ===== CHART =====
-        fig = px.bar(
-            manager_summary,
-            x="manager_name",
-            y="total_risk",
-            color="level",
-            text="total_risk",
-            color_discrete_map={
-                "High": "#ff4d4f",    # đỏ
-                "Medium": "#faad14",  # vàng
-                "Low": "#52c41a"      # xanh
-            }
-        )
-        
-        # ===== FIX TEXT BỊ CHE + BỎ VIỀN =====
-        fig.update_traces(
-            textposition="outside",
-            textfont_size=22,
-            textfont_color="black",
-            cliponaxis=False   # 👈 QUAN TRỌNG: tránh bị cắt số
-        )
-        
-        # ===== LÀM CHỮ ĐẬM + ĐEN =====
-        fig.update_layout(
-            title="📊 Số khách hàng có nguy cơ rời bỏ theo quản lý",
-            xaxis_title="Manager",
-            yaxis_title="Số khách rủi ro",
-            font=dict(size=16, color="black"),  # 👈 chữ toàn bộ đậm hơn
-            xaxis=dict(
-                tickfont=dict(size=16, color="black")
-            ),
-            yaxis=dict(
-                tickfont=dict(size=14, color="black")
-            ),
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            showlegend=False,
-            margin=dict(t=80)  # 👈 tránh bị đè số trên cùng
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        # ===== EMAIL CONFIG =====
-        st.markdown("## 🔐 Email Config")
-        sender_email = st.text_input("Gmail của bạn")
-        password = st.text_input("App Password", type="password")
+    # =========================
+    # 4. THEO PHÒNG BAN
+    # =========================
+    elif menu.startswith("4"):
+        if col_phong:
+            result = df.groupby(col_phong)["TOTAL_VALUE"].sum().reset_index()
 
-        # ===== SEND MAIL =====
-        def send_mail():
-            grouped = alert_df.groupby(["manager_name", "manager_email"])
+            fig = px.pie(result, names=col_phong, values="TOTAL_VALUE")
+            st.plotly_chart(fig)
+        else:
+            st.error("❌ Không tìm thấy cột phòng ban")
 
-            server = smtplib.SMTP("smtp.gmail.com", 587)
-            server.starttls()
-            server.login(sender_email, password)
+    # =========================
+    # 5. KHÁCH NGỦ ĐÔNG
+    # =========================
+    elif menu.startswith("5"):
+        if col_sp:
+            dormant = df[df[col_sp] <= 1]
+            st.subheader(f"😴 Khách ngủ đông: {len(dormant)}")
+            st.dataframe(dormant.head(100))
+        else:
+            st.error("❌ Không tìm thấy cột sản phẩm")
 
-            for (manager_name, manager_email), group in grouped:
+    # =========================
+    # 6. BIỂU ĐỒ
+    # =========================
+    elif menu.startswith("6"):
+        fig1 = px.histogram(df, x=col_hdv, title="Tiền gửi")
+        fig2 = px.histogram(df, x=col_tnt, title="Doanh thu")
 
-                group = group.sort_values("login_drop_pct", ascending=False)
+        st.plotly_chart(fig1)
+        st.plotly_chart(fig2)
 
-                rows = ""
-                for _, row in group.iterrows():
-                    color = "#f8d7da" if row["risk_level"] == "High" else "#fff3cd"
-                    rows += f"""
-                    <tr style="background:{color};">
-                        <td>{row['customer_name']}</td>
-                        <td>{row['login_week_prev']}</td>
-                        <td>{row['login_week_curr']}</td>
-                        <td>{round(row['login_drop_pct'],2)}%</td>
-                        <td>{row['risk_level']}</td>
-                    </tr>
-                    """
+    # =========================
+    # 7. CLUSTERING
+    # =========================
+    elif menu.startswith("7"):
+        if col_sp:
+            X = df[[col_tnt, col_hdv, col_sp]]
 
-                html = f"""
-                <html>
-                <body>
-                <h2>🚨 Churn Alert</h2>
-                <p>Chào <b>{manager_name}</b>,</p>
-                <p>Bạn có <b>{len(group)}</b> khách cần chăm sóc:</p>
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X)
 
-                <table border="1" cellpadding="8" style="border-collapse: collapse;">
-                    <tr style="background:#d9edf7;">
-                        <th>Khách</th>
-                        <th>Login trước</th>
-                        <th>Login hiện tại</th>
-                        <th>% giảm</th>
-                        <th>Risk</th>
-                    </tr>
-                    {rows}
-                </table>
+            kmeans = KMeans(n_clusters=3, n_init=10)
+            df["CLUSTER"] = kmeans.fit_predict(X_scaled)
 
-                <br>
-                <p>-- Churn System --</p>
-                </body>
-                </html>
-                """
+            fig = px.scatter(df, x=col_tnt, y=col_hdv, color="CLUSTER")
+            st.plotly_chart(fig)
+        else:
+            st.error("❌ Không đủ cột để clustering")
 
-                msg = MIMEMultipart()
-                msg["Subject"] = f"{len(group)} khách hàng có nguy cơ rời bỏ"
-                msg["From"] = sender_email
-                msg["To"] = manager_email
+    # =========================
+    # 8. SCORING
+    # =========================
+    elif menu.startswith("8"):
+        if col_sp:
+            df["SCORE"] = (
+                df[col_tnt]*0.5 +
+                df[col_hdv]*0.3 +
+                df[col_sp]*0.2
+            )
 
-                msg.attach(MIMEText(html, "html"))
+            st.dataframe(df.nlargest(50, "SCORE"))
+        else:
+            st.error("❌ Không đủ cột để scoring")
 
-                server.send_message(msg)
+    # =========================
+    # 9. CHURN
+    # =========================
+    elif menu.startswith("9"):
+        if col_sp:
+            df["CHURN"] = df[col_sp].apply(lambda x: 1 if x <= 1 else 0)
+            churn = df[df["CHURN"] == 1]
 
-            server.quit()
-            st.success("✅ Gửi mail thành công!")
-
-        st.markdown("## 📧 Gửi email")
-
-        if st.button("🚀 Send Alert Email"):
-            if sender_email == "" or password == "":
-                st.warning("Nhập email + app password")
-            else:
-                try:
-                    send_mail()
-                except Exception as e:
-                    st.error(e)
-
-        # ===== FULL TABLE =====
-        st.subheader("📋 Full Data")
-        st.dataframe(df.style.apply(highlight, axis=1), use_container_width=True)
-
-        # ===== DOWNLOAD =====
-        csv = df.to_csv(index=False).encode("utf-8-sig")
-        st.download_button("📥 Download CSV", csv, "churn.csv")
+            st.subheader(f"⚠️ Khách có nguy cơ rời: {len(churn)}")
+            st.dataframe(churn.head(100))
+        else:
+            st.error("❌ Không đủ dữ liệu churn")
 
 else:
     st.info("Upload file để bắt đầu")
